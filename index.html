@@ -1,0 +1,39 @@
+<!doctype html>
+<html>
+<head>
+  <title>人脸识别</title>
+  <meta charset="utf8">
+  <meta name="viewport" content="width=device-width,initial-scale=1,minimum-scale=1,maximum-scale=1,user-scalable=no" />
+  <link href="css/index.css" rel="stylesheet"/>
+</head>
+<body>
+  <div class="wrapper">
+    <div class="welcome">
+      WELCOME
+    </div>
+    <div class="title">
+      欢迎使用人脸AI系统!
+    </div>
+    <div class="btnwrap">
+      <div class="btn" id="regist">注册</div>
+      <div class="btn" id="login">拍照登陆</div>
+      <div class="btn" id="realtime">实时登陆</div>
+    </div>
+  </div>
+</body>
+</html>
+<script src="js/jquery-1.9.1.js"></script>
+<script>
+  $(document).ready(function() {
+    $('#regist').click(function() {
+      window.location.href= './regist.html'
+    })
+    $('#login').click(function() {
+      window.location.href= './login.html'
+    })
+    $('#realtime').click(function() {
+      window.location.href= './realtime.html'
+    })
+    
+  })
+</script>

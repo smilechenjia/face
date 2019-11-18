@@ -1,0 +1,294 @@
+<!doctype html>
+<html>
+<head>
+  <title>人脸登陆</title>
+  <meta charset="utf8">
+  <meta name="viewport" content="width=device-width,initial-scale=1,minimum-scale=1,maximum-scale=1,user-scalable=no" />
+  <link href="css/index.css" rel="stylesheet"/>
+</head>
+<body>
+  <div class="topwrapper">
+    <img src="img/back.png" width=15px height=16px id="back"></img>
+    <span>人脸登陆</div>
+  </div>
+  <div class="content">
+    <div class="btnwrapper">
+      <div id="cambtn" class="btn">拍照/相册</div> 
+    </div>
+
+    <div id="imgshow">
+      <div id="rect"></div>
+      <canvas id="myCanvas" style="display: none"></canvas>
+      <img src="" id="ago" style="display:none;"/>
+      <img src="" id="img" />
+    </div>
+    <div id="info">
+      <div class="toptittle">
+        <div class="line"></div>
+        <div class="cont">
+          <img src="img/zhuanjiaku.png" width=20px height=20px/>
+          <span class="text">个人信息</span>
+        </div>
+        <div class="line"></div>
+      </div>
+      <div class="middletext">
+        <div class="line">
+          <img src="img/comp.png" width=15px height=15px/>
+          <span>工号：</span>
+          <span id="jobId"></span>
+        </div>
+        <div class="line">
+          <img src="img/position.png" width=15px height=15px/>
+          <span>姓名：</span>
+          <span id="name" ></span>
+        </div>
+        <div class="line" id="agewrap">
+          <img src="img/position.png" width=15px height=15px/>
+          <span>年龄：</span>
+          <span id="age"></span>
+        </div>
+        <div class="line" id="phonewrap">
+          <img src="img/phone.png" width=15px height=15px/>
+          <span>电话：</span>
+          <span id="phone"></span>
+        </div> 
+        
+      </div>  
+    </div>
+    <div id="button" class="button">提交</div>
+    <form id="form">
+      <input id="file" name="file" type="file" accept= "image/*"/>
+    </form> 
+    <div id="loading" class="loading">
+      加载中
+    </div>
+  </div>
+  
+</body>
+</html>
+
+<script src="js/jquery-1.9.1.js"></script>
+<script src="js/exif.js"></script>
+<script>
+  $(document).ready(function() {
+   
+    $("#file").change(function(){
+      var $c = document.querySelector("#file");//上传触发按钮
+      var $imgshow = document.querySelector("#imgshow");//图片容器
+      var $d = document.querySelector("#img");//转之后图片
+      var agoimg = document.querySelector("#ago");//转之前图片
+      var file = $c.files[0];//获取file对象单张
+      var Orientation = null; //方向
+      console.log(file)
+      //拿到图片属性
+      EXIF.getData(file, function() {
+        Orientation = EXIF.getTag(this, 'Orientation');
+        
+      });
+      var reader = new FileReader();//创建filereader对象
+      reader.readAsDataURL(file);//转换数据
+      reader.onload = function(e){//加载ok时触发的事件
+        var image = new Image();
+        // console.log('e.target.result',e.target.result);
+        image.src = e.target.result;
+        agoimg.src = e.target.result;
+        agoimg.onload = function() {
+          var expectWidth = this.naturalWidth;
+          var expectHeight = this.naturalHeight;
+          var calc = expectWidth / expectHeight; //比例参数 实现等比缩放
+          var canvas = document.getElementById('myCanvas');
+          var ctx = canvas.getContext("2d");
+          canvas.width = expectWidth;
+          canvas.height = expectHeight;
+          console.log('canvas宽度' + canvas.width)
+          console.log('canvas高度' + canvas.width)
+          var base64 = null;
+          //修复ios Orientation  == 6 
+          console.log(Orientation)
+          if (Orientation === 6) {
+            //console.log('需要向左90度旋转');
+            ctx.save(); //保存状态
+            ctx.translate(canvas.width/2, canvas.height/2); //设置画布上的(0,0)位置，也就是旋转的中心点
+            ctx.rotate(90 * Math.PI / 180); //把画布旋转90度
+            // 执行Canvas的drawImage语句
+            ctx.drawImage(image, -(canvas.width/2), -(canvas.height/2), canvas.width, canvas.height); //把图片绘制在画布translate之前的中心点，这是关键点
+            ctx.restore(); //恢复状态
+          }
+          else if(Orientation === 8){
+            ctx.save();
+            ctx.translate(canvas.width/2, canvas.height/2);    
+            ctx.rotate(3 * Math.PI / 2);    
+            ctx.drawImage(image, -(canvas.width/2), -(canvas.height/2), canvas.width, canvas.height);
+          }
+          else {
+            ctx.drawImage(image, 0, 0, canvas.width, canvas.height);
+          }
+          $("#imgshow").css("display",'block');
+          $("#imgshow").css("position",'relative');
+          // var h = canvas.height;
+          // var w = canvas.width;
+          base64 = canvas.toDataURL("image/jpeg", 0.92);
+          $d.setAttribute("src", base64);
+         
+          //人脸检测
+          var bytes = window.atob((base64).split(',')[1]);
+          var array = [];
+          for(var i = 0; i < bytes.length; i++){
+            array.push(bytes.charCodeAt(i));
+          }
+          var blob = new Blob([new Uint8Array(array)],{type:'image/jpeg'});
+          var formData = new FormData();
+          formData.append('file',blob,Date.now() + '.jpg');
+          // formData.append('id', '789');
+          $.ajax({
+            type: 'post',
+            url: 'http://10.1.100.178:8080/ttface/detectlandmark',
+            data: formData,
+            contentType: false,// 当有文件要上传时，此项是必须的，否则后台无法识别文件流的起始位置(详见：#1)
+            processData: false,// 是否序列化data属性，默认true(注意：false时type必须是post，详见：#2)
+        // xhr: xhrOnProgress(function(e){// (详见：#3)
+        //        var percent = e.loaded / e.total * 100;//计算百分比
+        //        var $load = document.querySelector("#loading");
+        //        $load.style.display = "block";
+        //        $("#loading").text("检索中 ：" + Math.round(percent) + "%")
+        //        //$('body').append('->'+ percent);
+        //  }),
+            success: function(data) {
+              console.log(data);
+              if(data.code === 10000){
+                var res = data.data;
+                var rect = res.rects[0];
+                var x = rect.x;
+                var y = rect.y;
+                var width = rect.width;
+                var height = rect.height;
+                console.log(x,y,width,height);
+                var showheight = $("#img").height();
+                var showwidth = $("#img").width();
+                var finalleft = x * showwidth / expectWidth;
+                var finaltop = y * showheight / expectHeight;
+                var finalheight = height * showheight / expectHeight;
+                var finalwidth = width * showwidth / expectWidth;
+                $("#rect").width(finalwidth);
+                $("#rect").height(finalheight);
+                $("#rect").css("top",finaltop);
+                $("#rect").css("left",finalleft);
+              }
+            },
+            error: function(XMLHttpRequest, textStatus, errorThrown) {
+              console.log(XMLHttpRequest.readyState);
+              console.log(textStatus);
+              console.log(errorThrown);
+              alert(errorThrown);
+            }
+          })
+
+          
+        };
+      
+      
+      
+      };
+        // $d.setAttribute("src", e.target.result);//给图片地址,显示缩略图
+        // $imgshow.style.display="block";//样式显示 
+      
+    });  
+
+    // 监听上传进度
+    var xhrOnProgress = function(fun) {
+      xhrOnProgress.onprogress = fun; //绑定监听
+      return function() {
+        //通过$.ajaxSettings.xhr();获得XMLHttpRequest对象
+        var xhr = $.ajaxSettings.xhr();
+        //判断监听函数是否为函数
+        if (typeof xhrOnProgress.onprogress !== 'function')
+          return xhr;
+        //如果有监听函数并且xhr对象支持绑定时就把监听函数绑定上去
+        if (xhrOnProgress.onprogress && xhr.upload) {
+          xhr.upload.onprogress = xhrOnProgress.onprogress;
+        }
+        return xhr;
+      }
+    }
+    $('#back').click(function() {
+      window.location.href= './index.html'
+    })
+    $('#button').click(function() {
+      //拿到图片的dataurl,逗号之后是bse64字符串，再转成二进制流
+      var basestr = $("#img")[0].src;
+      console.log('chen',basestr)
+      // 解码使用 base-64 编码的字符串，变成字符串
+      var bytes = window.atob(basestr.split(',')[1]);
+      //获得每个字符的unicode编码
+      var array = [];
+      for(var i = 0; i < bytes.length; i++){
+        array.push(bytes.charCodeAt(i));  
+      }
+      var blob = new Blob([new Uint8Array(array)],{type:'image/jpeg'});//字符串变成二进制流
+      var formData = new FormData();
+      formData.append('file',blob, Date.now() + '.jpg');//要把后缀加上
+      // console.log('======chenjia=====',$('#file').val())
+      //var formData = new FormData($('#form')[0]);// 自动搜索表单信息(表单内没有name属性的input不会被搜索到)，IE<=9不支持FormData
+      if($('#file').val() == '') {
+        alert('请上传图片')
+        return;
+      }
+
+      $.ajax({
+        type: 'post',
+        url: 'http://10.1.100.178:8080/ttface/facesearch',
+        data: formData,
+        contentType: false,// 当有文件要上传时，此项是必须的，否则后台无法识别文件流的起始位置(详见：#1)
+        processData: false,// 是否序列化data属性，默认true(注意：false时type必须是post，详见：#2)
+        xhr: xhrOnProgress(function(e){// (详见：#3)
+               var percent = e.loaded / e.total * 100;//计算百分比
+               var $load = document.querySelector("#loading");
+               $load.style.display = "block";
+               $("#loading").text("检索中 ：" + Math.round(percent) + "%")
+               //$('body').append('->'+ percent);
+         }),
+        success: function(data) {
+          var $load = document.querySelector("#loading");
+          $load.style.display = "none";
+          console.log(data)
+          if(data.code === 11111){
+            alert('操作失败')
+          }
+          if(data.code === 10000){
+            if(data.data && data.data.result === "-1"){
+              alert("登陆失败，请重新上传图片！")
+            }  
+            if(data.data && data.data.result === "1"){
+              var user = data.data.user
+              alert("登陆成功")
+              var $info = document.querySelector("#info");
+              var $agewrap = document.querySelector("#agewrap");
+              var $phonewrap = document.querySelector("#phonewrap");
+              $info.style.display = "block";//显示个人信息的工号和姓名
+              $("#jobId").text(user.jobId)
+              $("#name").text(user.name)
+              $("#age").text('')
+              $("#phone").text('')
+              if(user.age !== null){
+                $("#age").text(user.age)
+              }
+              if(user.phone !== null){
+                $("#phone").text(user.phone)
+              }
+            }    
+          }
+        },
+        error: function(XMLHttpRequest, textStatus, errorThrown) {
+          console.log(XMLHttpRequest.readyState);
+          console.log(textStatus);
+          console.log(errorThrown);
+          alert(errorThrown);
+        }
+      })
+    })
+
+    $('#cambtn').click(function(){
+      $('#file').click();
+    })
+  })
+</script>

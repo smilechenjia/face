@@ -1,0 +1,274 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta name="viewport" content="width=device-width,initial-scale=1,minimum-scale=1,maximum-scale=1,user-scalable=no" />
+    <meta charset="UTF-8">
+    <meta name="Generator" content="EditPlus®">
+    <meta name="Author" content="">
+    <meta name="Keywords" content="">
+    <meta name="Description" content="">
+    <title>人脸实时登陆</title>
+    <link href="css/real.css" rel="stylesheet"/>
+  </head>
+  
+  <body>
+    <div class="wrapper">
+      <div class="topwrapper">
+        <img src="img/back.png" width=15px height=16px id="back"></img>
+        <span>人脸实时登陆</div>
+      </div>
+      <div class="btnwrapper">
+        <div id="btn_snap" class="btn">开始识别</div>
+        <div id="stop" class="btn">停止识别</div>
+      </div>
+      <div id="camera" style="display:none">
+        <div id="contentHolder">
+          <video id="video" width="300" height="300" autoplay></video>
+          <canvas id="canvas" style="display:none;" width="300" height="300"></canvas>
+        </div>
+      </div>
+      <div id="imgshow" style="display:none">
+        <div id="rect"></div>
+        <img src="" id="img"></img>
+      </div>
+
+      <div id="info">
+        <div class="toptittle">
+          <div class="line"></div>
+          <div class="cont">
+            <img src="img/zhuanjiaku.png" width=20px height=20px/>
+            <span class="text">个人信息</span>
+          </div>
+          <div class="line"></div>
+        </div>
+        <div class="middletext">
+          <div class="line">
+            <img src="img/comp.png" width=15px height=15px/>
+            <span>工号：</span>
+            <span id="jobId"></span>
+          </div>
+          <div class="line">
+            <img src="img/position.png" width=15px height=15px/>
+            <span>姓名：</span>
+            <span id="name" ></span>
+          </div>
+          <div class="line" id="agewrap">
+            <img src="img/position.png" width=15px height=15px/>
+            <span>年龄：</span>
+            <span id="age"></span>
+          </div>
+          <div class="line" id="phonewrap">
+            <img src="img/phone.png" width=15px height=15px/>
+            <span>电话：</span>
+            <span id="phone"></span>
+          </div> 
+        </div>  
+      </div>
+      <div id="msg"></div>
+    </div> 
+  </body>
+  <script src="js/jquery-1.9.1.js"></script>
+  <script>
+    var pzBtn = document.getElementById("btn_snap");//开始识别
+    var canvas = document.getElementById("canvas");
+    var context = canvas.getContext("2d");
+    var video = document.getElementById("video");
+    var lock = 0;
+    pzBtn.addEventListener("click", function () {
+      var $camera = document.querySelector("#camera");//摄像容器
+      $camera.style.display = "flex";
+      var $imgshow = document.querySelector("#imgshow");//图片容器
+      $imgshow.style.display = "none";
+      var $info = document.querySelector("#info");//图片容器
+      $info.style.display = "none";
+      var $msg = document.querySelector("#msg");//图片容器
+      $msg.style.display = "none";
+      lock = 0;
+      // 旧版本浏览器可能根本不支持mediaDevices，我们首先设置一个空对象
+      if (navigator.mediaDevices === undefined) {
+        navigator.mediaDevices = {};
+      }
+      // 一些浏览器实现了部分mediaDevices，我们不能只分配一个对象
+      // 使用getUserMedia，因为它会覆盖现有的属性。
+      // 这里，如果缺少getUserMedia属性，就添加它。
+      if (navigator.mediaDevices.getUserMedia === undefined) {
+        navigator.mediaDevices.getUserMedia = function (constraints) {
+          // 首先获取现存的getUserMedia(如果存在)
+          var getUserMedia = navigator.webkitGetUserMedia || navigator.mozGetUserMedia;
+          // 有些浏览器不支持，会返回错误信息
+          // 保持接口一致
+          if (!getUserMedia) {
+            return Promise.reject(new Error('getUserMedia is not implemented in this browser'));
+          }
+          //否则，使用Promise将调用包装到旧的navigator.getUserMedia
+          return new Promise(function (resolve, reject) {
+            getUserMedia.call(navigator, constraints, resolve, reject);
+          });
+        }
+      }
+      var constraints = { audio: false, video: {width: 720,height:720} }
+      navigator.mediaDevices.getUserMedia(constraints)
+        .then(function (stream) {
+          var video = document.querySelector('video');
+          // 旧的浏览器可能没有srcObject
+          if ("srcObject" in video) {
+            video.srcObject = stream;
+          } else {
+            //避免在新的浏览器中使用它，因为它正在被弃用。
+            video.src = window.URL.createObjectURL(stream);
+          }
+          video.onloadedmetadata = function (e) {
+            video.play();
+          };
+        })
+        .catch(function (err) {
+          console.log(err.name + ": " + err.message);
+        });
+      interval = setInterval(facesearch,2000);
+    });
+    
+    function facesearch(){//调函数
+      if(lock === 1){
+        return
+      }
+      context.drawImage(video, 0, 0, 300, 300);
+      // 获取图片base64链接
+      var image = canvas.toDataURL('image/png');
+      var $img = document.querySelector("#img");//转之后图片
+      $img.setAttribute("src", image);
+      // 定义一个img
+      // var img = new Image();
+      // //设置属性和src
+      // img.id = "imgBoxxx";
+      // img.src = image
+     
+      // //将图片添加到页面中
+      // document.body.appendChild(img);
+      var base64 = image.split(',')[1];//照片压缩成base位数据
+      var bytes = window.atob(base64);
+      var array = [];
+      for(var i = 0; i < bytes.length; i++){
+        array.push(bytes.charCodeAt(i));
+      }
+      var blob = new Blob([new Uint8Array(array)],{type:'image/jpeg'});
+      var formData = new FormData();
+      formData.append('file',blob, Date.now() + '.jpg');
+
+      $.ajax({
+        type: 'post',
+        url: 'http://10.1.100.178:8080/ttface/detectlandmark',
+        data: formData,
+        contentType: false,// 当有文件要上传时，此项是必须的，否则后台无法识别文件流的起始位置(详见：#1)
+        processData: false,// 是否序列化data属性，默认true(注意：false时type必须是post，详见：#2)
+        // xhr: xhrOnProgress(function(e){// (详见：#3)
+        //        var percent = e.loaded / e.total * 100;//计算百分比
+        //        var $load = document.querySelector("#loading");
+        //        $load.style.display = "block";
+        //        $("#loading").text("检索中 ：" + Math.round(percent) + "%")
+        //        //$('body').append('->'+ percent);
+        //  }),
+        success: function(data) {
+          console.log('检测',data);
+          if(data.code === 10000){
+            var res = data.data;
+            var rect = res.rects[0];
+            var x = rect.x;
+            var y = rect.y;
+            var width = rect.width;
+            var height = rect.height;
+            console.log(x,y,width,height);
+            $("#rect").width(width);
+            $("#rect").height(height);
+            $("#rect").css("top",y);
+            $("#rect").css("left",x);
+          }
+        },
+        error: function(XMLHttpRequest, textStatus, errorThrown) {
+          console.log(XMLHttpRequest.readyState);
+          console.log(textStatus);
+          console.log(errorThrown);
+          alert(errorThrown);
+        }
+      })
+
+      $.ajax({
+        type: 'post',
+        url: 'http://10.1.100.178:8080/ttface/facesearch',
+        data: formData,
+        contentType: false,// 当有文件要上传时，此项是必须的，否则后台无法识别文件流的起始位置(详见：#1)
+        processData: false,// 是否序列化data属性，默认true(注意：false时type必须是post，详见：#2)
+        // xhr: xhrOnProgress(function(e){// (详见：#3)
+        //        var percent = e.loaded / e.total * 100;//计算百分比
+        //        var $load = document.querySelector("#loading");
+        //        $load.style.display = "block";
+        //        $("#loading").text("识别中 ：" + Math.round(percent) + "%")
+        //        //$('body').append('->'+ percent);
+        //  }),
+        success: function(data) {
+          console.log(data)
+          if(data.code === 11111){
+            alert('操作失败')
+            $("#msg").css("display",'block')
+            $("#msg").text('没有匹配到,稍等')
+            lock = 0;
+          }
+          if(data.code === 10000){
+            if(data.data && data.data.result === "-1"){
+              // alert("没匹配到")
+              $("#msg").css("display",'block')
+              $("#msg").text('没有匹配到，稍等')
+              lock = 0;
+            }  
+            if(data.data && data.data.result === "1") {
+              lock = 1;
+              var user = data.data.user
+              alert("登陆成功");
+              var $camera = document.querySelector("#camera");//图片容器
+              $camera.style.display = "none";
+              var $imgshow = document.querySelector("#imgshow");//图片容器
+              $imgshow.style.display = "flex";
+              $("#msg").css("display",'none')
+
+              clearInterval(interval);//清除定时器
+              var $info = document.querySelector("#info");
+              var $agewrap = document.querySelector("#agewrap");
+              var $phonewrap = document.querySelector("#phonewrap");
+              $info.style.display = "block";//显示个人信息的工号和姓名
+              $("#jobId").text(user.jobId)
+              $("#name").text(user.name)
+              $("#age").text('')
+              $("#phone").text('')
+              if(user.age !== null){
+                $("#age").text(user.age)
+              }
+              if(user.phone !== null){
+                $("#phone").text(user.phone)
+              } 
+              
+            }    
+          }
+        },
+        error: function(XMLHttpRequest, textStatus, errorThrown) {
+          console.log(XMLHttpRequest.readyState);
+          console.log(textStatus);
+          console.log(errorThrown);
+          lock = 1;
+        }
+      })
+      
+    }
+    $('#back').click(function() {
+      window.location.href= './index.html'
+    })
+    $('#stop').click(function() {
+      var $camera = document.querySelector("#camera");//图片容器
+      $camera.style.display = "none";
+      var $msg = document.querySelector("#msg");//图片容器
+      $msg.style.display = "none";
+      var $imgshow = document.querySelector("#imgshow");//图片容器
+      $imgshow.style.display = "flex";
+      lock = 1;
+      
+    })
+  </script>
+</html>
